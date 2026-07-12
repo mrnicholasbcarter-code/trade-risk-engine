@@ -6,6 +6,7 @@ be replayed from its inputs alone. JSON round-trip helpers are provided on
 ``RiskDecision`` and ``RiskContext`` so that a crashed evaluation can be
 persisted, audited, and reloaded.
 """
+
 from __future__ import annotations
 
 import json
@@ -25,6 +26,7 @@ class RiskContext(msgspec.Struct, frozen=True):
     evaluator deterministic and prevent gates from mutating policy while a trade
     is being reviewed.
     """
+
     max_daily_drawdown_pct: float = 0.10
     max_weekly_drawdown_pct: float = 0.20
     max_correlated_exposure: float = 2500.0
@@ -53,7 +55,7 @@ class RiskContext(msgspec.Struct, frozen=True):
         return json.dumps(data, allow_nan=False, sort_keys=True)
 
     @classmethod
-    def from_json(cls, payload: str | bytes) -> "RiskContext":
+    def from_json(cls, payload: str | bytes) -> RiskContext:
         """Reconstruct a ``RiskContext`` from a JSON string.
 
         Unknown keys are ignored so that older payloads remain loadable after
@@ -83,6 +85,7 @@ class Position(msgspec.Struct, gc=False):
     correlated payoff. Resolved positions stay representable but are ignored for
     active exposure limits.
     """
+
     ticker: str
     family: str
     cost_basis: float
@@ -97,6 +100,7 @@ class RiskDecision(msgspec.Struct, gc=False):
     first gate that rejected the trade or ``OK``, and ``suggested_size`` carries
     the proposed or adjusted notional amount for downstream execution code.
     """
+
     approved: bool
     reason_code: str
     suggested_size: float
@@ -117,7 +121,7 @@ class RiskDecision(msgspec.Struct, gc=False):
         return json.dumps(data, allow_nan=False, sort_keys=True)
 
     @classmethod
-    def from_json(cls, payload: str | bytes) -> "RiskDecision":
+    def from_json(cls, payload: str | bytes) -> RiskDecision:
         """Reconstruct a ``RiskDecision`` from a JSON string."""
         data = json.loads(payload)
         return cls(
@@ -136,6 +140,7 @@ class TradeOutcome(BaseModel):
     a caller bug (and the gate surfaces it via the underlying timedelta
     comparison rather than silently coercing).
     """
+
     timestamp: datetime
     pnl: float
 

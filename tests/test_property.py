@@ -64,10 +64,12 @@ VALID_EXPECTED_VALUE = st.floats(
     width=64,
 )
 
-class TestRiskAuthorityProperties:
 
+class TestRiskAuthorityProperties:
     @settings(max_examples=1000)
-    @given(daily_pnl=EDGE_FLOATS, equity=EDGE_FLOATS, proposed=EDGE_FLOATS, expected_value=EDGE_FLOATS)
+    @given(
+        daily_pnl=EDGE_FLOATS, equity=EDGE_FLOATS, proposed=EDGE_FLOATS, expected_value=EDGE_FLOATS
+    )
     def test_engine_never_crashes_on_edge_floats(self, daily_pnl, equity, proposed, expected_value):
         decision = RiskAuthority.evaluate_trade(
             ctx=RiskContext(),
@@ -76,16 +78,23 @@ class TestRiskAuthorityProperties:
             target_family="test",
             proposed_cost=proposed,
             open_positions=[],
-            expected_value=expected_value
+            expected_value=expected_value,
         )
         assert isinstance(decision, RiskDecision)
         assert isinstance(decision.approved, bool)
         assert isinstance(decision.reason_code, str)
 
     @settings(max_examples=1000)
-    @given(daily_pnl=FINITE_MONEY, equity=POSITIVE_EQUITY, proposed=SAFE_PROPOSED, expected_value=VALID_EXPECTED_VALUE)
+    @given(
+        daily_pnl=FINITE_MONEY,
+        equity=POSITIVE_EQUITY,
+        proposed=SAFE_PROPOSED,
+        expected_value=VALID_EXPECTED_VALUE,
+    )
     def test_engine_decisions(self, daily_pnl, equity, proposed, expected_value):
-        ctx = RiskContext(latency_budget_us=1000000) # give a massive budget to avoid latency flakes
+        ctx = RiskContext(
+            latency_budget_us=1000000
+        )  # give a massive budget to avoid latency flakes
         decision = RiskAuthority.evaluate_trade(
             ctx=ctx,
             daily_realized_pnl=daily_pnl,
@@ -93,7 +102,7 @@ class TestRiskAuthorityProperties:
             target_family="test",
             proposed_cost=proposed,
             open_positions=[],
-            expected_value=expected_value
+            expected_value=expected_value,
         )
 
         expected_drawdown_breach = (daily_pnl / equity) < -ctx.max_daily_drawdown_pct
@@ -107,7 +116,6 @@ class TestRiskAuthorityProperties:
 
 
 class TestDrawdownGateProperties:
-
     @settings(max_examples=1000)
     @given(daily_pnl=EDGE_FLOATS, equity=EDGE_FLOATS)
     def test_drawdown_gate_edge_floats(self, daily_pnl, equity):
@@ -138,12 +146,19 @@ class TestDrawdownGateProperties:
 
 
 class TestConcentrationGateProperties:
-
     @settings(max_examples=1000)
     @given(existing_cost=EDGE_FLOATS, proposed=EDGE_FLOATS)
     def test_concentration_gate_edge_floats(self, existing_cost, proposed):
         decision = RiskDecision(approved=True, reason_code="OK", suggested_size=proposed)
-        positions = [Position(ticker="TEST-1", family="target", cost_basis=existing_cost, current_value=existing_cost, is_resolved=False)]
+        positions = [
+            Position(
+                ticker="TEST-1",
+                family="target",
+                cost_basis=existing_cost,
+                current_value=existing_cost,
+                is_resolved=False,
+            )
+        ]
         result = evaluate_concentration(RiskContext(), "target", proposed, positions, decision)
         assert isinstance(result, bool)
 
@@ -152,7 +167,15 @@ class TestConcentrationGateProperties:
     def test_concentration_gate_threshold(self, existing_cost, proposed):
         ctx = RiskContext()
         decision = RiskDecision(approved=True, reason_code="OK", suggested_size=proposed)
-        positions = [Position(ticker="TEST-1", family="target", cost_basis=existing_cost, current_value=existing_cost, is_resolved=False)]
+        positions = [
+            Position(
+                ticker="TEST-1",
+                family="target",
+                cost_basis=existing_cost,
+                current_value=existing_cost,
+                is_resolved=False,
+            )
+        ]
         result = evaluate_concentration(ctx, "target", proposed, positions, decision)
         expected_safe = (existing_cost + proposed) <= ctx.max_correlated_exposure
         assert result is expected_safe
@@ -160,7 +183,6 @@ class TestConcentrationGateProperties:
 
 
 class TestExpectedValueGateProperties:
-
     @settings(max_examples=1000)
     @given(expected_value=EDGE_FLOATS)
     def test_expected_value_gate_edge_floats(self, expected_value):
@@ -187,6 +209,7 @@ class TestExpectedValueGateProperties:
         just_breached = RiskDecision(approved=True, reason_code="OK", suggested_size=0.0)
         assert evaluate_expected_value(ctx, -1e-6, just_breached) is False
 
+
 def test_latency_budget():
     decision = RiskAuthority.evaluate_trade(
         ctx=RiskContext(latency_budget_us=-1),
@@ -195,7 +218,7 @@ def test_latency_budget():
         target_family="test",
         proposed_cost=0.0,
         open_positions=[],
-        expected_value=1.0
+        expected_value=1.0,
     )
     assert decision.approved is False
     assert decision.reason_code.startswith("ERR_LATENCY_BUDGET")

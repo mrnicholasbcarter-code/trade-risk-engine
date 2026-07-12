@@ -5,6 +5,7 @@ stateless and performs no I/O so it can run inside order-routing loops without
 allocating service objects or touching the network. Optional stateful desk-level
 gates live behind ``RiskAuthority(...).evaluate_with_state(...)``.
 """
+
 from __future__ import annotations
 
 import logging
@@ -41,7 +42,13 @@ class RiskAuthority:
     gates.
     """
 
-    __slots__ = ("_last_trip_reason", "consecutive_loss_gate", "kill_switch", "on_trip", "timed_breaker")
+    __slots__ = (
+        "_last_trip_reason",
+        "consecutive_loss_gate",
+        "kill_switch",
+        "on_trip",
+        "timed_breaker",
+    )
 
     def __init__(
         self,
@@ -126,7 +133,9 @@ class RiskAuthority:
             self._maybe_fire_trip(decision)
             return decision
 
-        if self.consecutive_loss_gate is not None and not self.consecutive_loss_gate.check(decision):
+        if self.consecutive_loss_gate is not None and not self.consecutive_loss_gate.check(
+            decision
+        ):
             self._maybe_fire_trip(decision)
             return decision
 
@@ -193,11 +202,26 @@ def _evaluate_stateless(
         )
         decision = RiskDecision(approved=True, reason_code="OK", suggested_size=proposed_cost)
 
-        if not _run_gate(tracer, "evaluate_expected_value", evaluate_expected_value, ctx, expected_value, decision):
+        if not _run_gate(
+            tracer,
+            "evaluate_expected_value",
+            evaluate_expected_value,
+            ctx,
+            expected_value,
+            decision,
+        ):
             _mark_rejected(span, decision)
             return decision
 
-        if not _run_gate(tracer, "evaluate_drawdown", evaluate_drawdown, ctx, daily_realized_pnl, equity, decision):
+        if not _run_gate(
+            tracer,
+            "evaluate_drawdown",
+            evaluate_drawdown,
+            ctx,
+            daily_realized_pnl,
+            equity,
+            decision,
+        ):
             _mark_rejected(span, decision)
             return decision
 

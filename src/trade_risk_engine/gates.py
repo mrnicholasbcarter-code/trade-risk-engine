@@ -6,16 +6,18 @@ from .state import Position, RiskContext, RiskDecision, TradeOutcome
 
 
 def evaluate_drawdown(
-    ctx: RiskContext,
-    daily_realized_pnl: float,
-    equity: float,
-    decision: RiskDecision
+    ctx: RiskContext, daily_realized_pnl: float, equity: float, decision: RiskDecision
 ) -> bool:
     """
     Pessimistic drawdown gate.
     If daily losses exceed the max subset, immediately short-circuit.
     """
-    if math.isnan(equity) or math.isnan(daily_realized_pnl) or math.isinf(equity) or math.isinf(daily_realized_pnl):
+    if (
+        math.isnan(equity)
+        or math.isnan(daily_realized_pnl)
+        or math.isinf(equity)
+        or math.isinf(daily_realized_pnl)
+    ):
         decision.approved = False
         decision.reason_code = "ERR_INVALID_FLOAT_DRAWDOWN"
         return False
@@ -32,12 +34,13 @@ def evaluate_drawdown(
         return False
     return True
 
+
 def evaluate_concentration(
     ctx: RiskContext,
     target_family: str,
     proposed_cost: float,
     open_positions: list[Position],
-    decision: RiskDecision
+    decision: RiskDecision,
 ) -> bool:
     """
     Blocks trades that concentrate capital into a single event resolution or asset family.
@@ -63,10 +66,9 @@ def evaluate_concentration(
 
     return True
 
+
 def evaluate_expected_value(
-    ctx: RiskContext,
-    expected_value: float,
-    decision: RiskDecision
+    ctx: RiskContext, expected_value: float, decision: RiskDecision
 ) -> bool:
     """
     Blocks trades that do not meet the minimum expected value threshold (e.g. EV <= 0).
@@ -78,7 +80,9 @@ def evaluate_expected_value(
 
     if expected_value < ctx.min_expected_value:
         decision.approved = False
-        decision.reason_code = f"ERR_EXPECTED_VALUE: {expected_value} is below minimum {ctx.min_expected_value}"
+        decision.reason_code = (
+            f"ERR_EXPECTED_VALUE: {expected_value} is below minimum {ctx.min_expected_value}"
+        )
         return False
 
     return True
@@ -88,7 +92,7 @@ def evaluate_consecutive_losses(
     ctx: RiskContext,
     trade_outcomes: list[TradeOutcome] | None,
     current_time: datetime | None,
-    decision: RiskDecision
+    decision: RiskDecision,
 ) -> bool:
     """
     Blocks trades after N consecutive losses within Y minutes.
@@ -102,6 +106,7 @@ def evaluate_consecutive_losses(
     if current_time is None:
         if trade_outcomes[0].timestamp.tzinfo is not None:
             from datetime import timezone
+
             current_time = datetime.now(timezone.utc)
         else:
             current_time = datetime.utcnow()
@@ -150,7 +155,7 @@ class KillSwitch:
     calls within one trading session.
     """
 
-    __slots__ = ("tripped", "tripped_at", "reason")
+    __slots__ = ("reason", "tripped", "tripped_at")
 
     def __init__(self, reason: str = "ERR_KILL_SWITCH_MANUAL") -> None:
         self.tripped: bool = False
@@ -203,8 +208,8 @@ class TimedCircuitBreaker:
         "consecutive_loss_threshold",
         "cooldown_hours",
         "loss_streak",
-        "tripped_at",
         "tripped",
+        "tripped_at",
     )
 
     def __init__(
@@ -291,7 +296,7 @@ class ConsecutiveLossGate:
     are interleaved. This matches how a risk officer looks at a blotter.
     """
 
-    __slots__ = ("max_losses", "window_trades", "history")
+    __slots__ = ("history", "max_losses", "window_trades")
 
     def __init__(self, max_losses: int, window_trades: int) -> None:
         if max_losses < 1:
@@ -311,7 +316,7 @@ class ConsecutiveLossGate:
         self.history.append(pnl < 0)
         # Trim to the rolling window.
         if len(self.history) > self.window_trades:
-            self.history = self.history[-self.window_trades:]
+            self.history = self.history[-self.window_trades :]
 
     def check(self, decision: RiskDecision) -> bool:
         """Return True if the trade may proceed past this gate."""
@@ -337,5 +342,3 @@ class ConsecutiveLossGate:
 def _is_finite(x: float) -> bool:
     """Local finite-check so gates don't import state-level helpers transitively."""
     return isinstance(x, float) and not (math.isnan(x) or math.isinf(x))
-
-

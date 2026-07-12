@@ -243,26 +243,27 @@ class TestOpenTelemetryTracing:
     def test_consecutive_losses_current_time_none_naive(self):
         ctx = RiskContext(consecutive_loss_limit=3, consecutive_loss_window_minutes=15.0)
         decision = RiskDecision(approved=True, reason_code="OK", suggested_size=100.0)
-        
+
         # Passing no current_time, outcomes are naive
         outcomes = [
             TradeOutcome(timestamp=datetime.utcnow() - timedelta(minutes=5), pnl=-10.0),
         ]
-        
+
         res = evaluate_consecutive_losses(ctx, outcomes, None, decision)
         assert res is True
         assert decision.approved is True
 
     def test_consecutive_losses_current_time_none_aware(self):
         from datetime import timezone
+
         ctx = RiskContext(consecutive_loss_limit=3, consecutive_loss_window_minutes=15.0)
         decision = RiskDecision(approved=True, reason_code="OK", suggested_size=100.0)
-        
+
         # Passing no current_time, outcomes are aware
         outcomes = [
             TradeOutcome(timestamp=datetime.now(timezone.utc) - timedelta(minutes=5), pnl=-10.0),
         ]
-        
+
         res = evaluate_consecutive_losses(ctx, outcomes, None, decision)
         assert res is True
         assert decision.approved is True
@@ -273,11 +274,12 @@ class TestWebhookEmitterIntegration:
 
     @pytest.mark.anyio
     async def test_webhook_emit_no_client_default(self):
-        from unittest.mock import patch, AsyncMock
+        from unittest.mock import AsyncMock, patch
+
         mock_response = AsyncMock()
         mock_response.status_code = 200
         mock_response.raise_for_status = AsyncMock()
-        
+
         with patch("httpx.AsyncClient.post", return_value=mock_response) as mock_post:
             emitter = WebhookEmitter("http://testserver/webhook")
             event = RiskEvent(
@@ -292,4 +294,3 @@ class TestWebhookEmitterIntegration:
             success = await emitter.emit(event)
             assert success is True
             mock_post.assert_called_once()
-
