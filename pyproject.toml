@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "Zero-allocation absolute drawdown mathematics evaluators."
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = ["msgspec>=0.18.0"]
+dependencies = ["msgspec>=0.18.0", "pydantic>=2.0.0", "opentelemetry-api>=1.20.0", "opentelemetry-sdk>=1.20.0", "httpx>=0.20.0"]
 
 [project.optional-dependencies]
 dev = ["pytest", "pytest-cov", "hypothesis", "ruff", "mypy"]
@@ -25,7 +25,7 @@ line-length = 100
 target-version = "py310"
 select = ["E", "F", "I", "N", "W", "UP", "B", "SIM", "RUF"]
 ignore = ["E501", "B008"]
-per-file-ignores = { "tests/*" = ["S101"] }
+per-file-ignores = { "tests/*" = ["S101", "E402"] }
 
 [tool.ruff.format]
 quote-style = "double"

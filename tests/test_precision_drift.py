@@ -8,6 +8,7 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 import pytest
+
 from trade_risk_engine.gates import (
     evaluate_concentration,
     evaluate_drawdown,
