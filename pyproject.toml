@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "Zero-allocation absolute drawdown mathematics evaluators."
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = []
+dependencies = ["msgspec>=0.18.0"]
 
 [project.optional-dependencies]
 dev = ["pytest", "pytest-cov", "hypothesis"]
