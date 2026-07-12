@@ -1,9 +1,8 @@
-import math
 import sys
 from pathlib import Path
-import time
 
-from hypothesis import given, settings, strategies as st
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SRC_ROOT = PROJECT_ROOT / "src"
@@ -11,7 +10,11 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from trade_risk_engine.engine import RiskAuthority
-from trade_risk_engine.gates import evaluate_concentration, evaluate_drawdown, evaluate_expected_value
+from trade_risk_engine.gates import (
+    evaluate_concentration,
+    evaluate_drawdown,
+    evaluate_expected_value,
+)
 from trade_risk_engine.state import Position, RiskContext, RiskDecision
 
 EDGE_FLOATS = st.one_of(
@@ -94,7 +97,7 @@ class TestRiskAuthorityProperties:
         )
 
         expected_drawdown_breach = (daily_pnl / equity) < -ctx.max_daily_drawdown_pct
-        
+
         if expected_drawdown_breach:
             assert decision.approved is False
             assert decision.reason_code.startswith("ERR_DAILY_DRAWDOWN")
@@ -125,11 +128,11 @@ class TestDrawdownGateProperties:
     def test_drawdown_epsilon_boundary(self):
         ctx = RiskContext()
         equity = 100.0
-        
+
         # 1e-6 drift bounds per the prompt request, replacing 1e-12 with 1e-6 as a drift edge case
         just_safe = RiskDecision(approved=True, reason_code="OK", suggested_size=0.0)
         assert evaluate_drawdown(ctx, -10.0 + 1e-6, equity, just_safe) is True
-        
+
         just_breached = RiskDecision(approved=True, reason_code="OK", suggested_size=0.0)
         assert evaluate_drawdown(ctx, -10.0 - 1e-6, equity, just_breached) is False
 
@@ -180,7 +183,7 @@ class TestExpectedValueGateProperties:
         just_safe = RiskDecision(approved=True, reason_code="OK", suggested_size=0.0)
         # 1e-6 drift bounds per the prompt request
         assert evaluate_expected_value(ctx, 1e-6, just_safe) is True
-        
+
         just_breached = RiskDecision(approved=True, reason_code="OK", suggested_size=0.0)
         assert evaluate_expected_value(ctx, -1e-6, just_breached) is False
 

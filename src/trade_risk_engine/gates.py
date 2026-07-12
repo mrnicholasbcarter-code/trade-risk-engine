@@ -1,11 +1,12 @@
 import math
-from typing import List
-from .state import RiskContext, Position, RiskDecision
+
+from .state import Position, RiskContext, RiskDecision
+
 
 def evaluate_drawdown(
-    ctx: RiskContext, 
-    daily_realized_pnl: float, 
-    equity: float, 
+    ctx: RiskContext,
+    daily_realized_pnl: float,
+    equity: float,
     decision: RiskDecision
 ) -> bool:
     """
@@ -21,7 +22,7 @@ def evaluate_drawdown(
         decision.approved = False
         decision.reason_code = "ERR_ZERO_OR_NEGATIVE_EQUITY"
         return False
-        
+
     drawdown_pct = daily_realized_pnl / equity
     if drawdown_pct < -ctx.max_daily_drawdown_pct:
         decision.approved = False
@@ -30,10 +31,10 @@ def evaluate_drawdown(
     return True
 
 def evaluate_concentration(
-    ctx: RiskContext, 
-    target_family: str, 
+    ctx: RiskContext,
+    target_family: str,
     proposed_cost: float,
-    open_positions: List[Position], 
+    open_positions: list[Position],
     decision: RiskDecision
 ) -> bool:
     """
@@ -52,12 +53,12 @@ def evaluate_concentration(
                 decision.reason_code = "ERR_INVALID_FLOAT_CONCENTRATION"
                 return False
             current_exposure += pos.cost_basis
-            
+
     if (current_exposure + proposed_cost) > ctx.max_correlated_exposure:
         decision.approved = False
         decision.reason_code = f"ERR_CONCENTRATION: {target_family} exposure would exceed {ctx.max_correlated_exposure}"
         return False
-        
+
     return True
 
 def evaluate_expected_value(
@@ -72,10 +73,10 @@ def evaluate_expected_value(
         decision.approved = False
         decision.reason_code = "ERR_INVALID_FLOAT_EXPECTED_VALUE"
         return False
-        
+
     if expected_value < ctx.min_expected_value:
         decision.approved = False
         decision.reason_code = f"ERR_EXPECTED_VALUE: {expected_value} is below minimum {ctx.min_expected_value}"
         return False
-        
+
     return True

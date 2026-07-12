@@ -1,5 +1,6 @@
 import msgspec
 
+
 class RiskContext(msgspec.Struct, frozen=True):
     """Immutable configuration for all risk gates.
 
