@@ -12,6 +12,7 @@ dependencies = ["msgspec>=0.18.0"]
 
 [project.optional-dependencies]
 dev = ["pytest", "pytest-cov", "hypothesis", "ruff", "mypy"]
+test = ["pytest", "pytest-cov", "hypothesis"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/trade_risk_engine"]
