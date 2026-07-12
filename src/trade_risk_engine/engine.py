@@ -1,12 +1,16 @@
 import time
 from typing import List
 from .state import RiskContext, Position, RiskDecision
-from .gates import evaluate_drawdown, evaluate_concentration
+from .gates import evaluate_drawdown, evaluate_concentration, evaluate_expected_value
 
 class RiskAuthority:
-    """
-    Central Risk Engine.
-    Executes in a pure-functional manner guaranteeing zero side-effects.
+    """Stateless coordinator for deterministic trade risk evaluation.
+
+    ``RiskAuthority`` is intentionally side-effect free: every decision is
+    derived from the supplied ``RiskContext``, current PnL/equity inputs, target
+    family, proposed cost, and open positions. The class owns no mutable state
+    and exposes a static entry point so callers can evaluate trades without
+    constructing service objects or performing I/O.
     """
     
     @staticmethod
@@ -16,14 +20,26 @@ class RiskAuthority:
         equity: float,
         target_family: str,
         proposed_cost: float,
-        open_positions: List[Position]
+        open_positions: List[Position],
+        expected_value: float = 0.0
     ) -> RiskDecision:
+        """Evaluate whether a proposed trade satisfies every configured gate.
+
+        Gates short-circuit in capital-protection order. Drawdown is evaluated
+        before concentration so catastrophic loss limits always dominate sizing
+        decisions. The returned ``RiskDecision`` contains the first rejection
+        reason, or ``OK`` with the original proposed size when all gates pass.
+        """
         
         start_ns = time.perf_counter_ns()
         
         # Pre-allocate response
         decision = RiskDecision(approved=True, reason_code="OK", suggested_size=proposed_cost)
         
+        # 0. Expected Value Gate
+        if not evaluate_expected_value(ctx, expected_value, decision):
+            return decision
+
         # 1. Drawdown Gate
         if not evaluate_drawdown(ctx, daily_realized_pnl, equity, decision):
             return decision
