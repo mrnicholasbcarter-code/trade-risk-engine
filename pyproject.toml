@@ -4,16 +4,17 @@ build-backend = "hatchling.build"
 
 [project]
 name = "trade-risk-engine"
-version = "0.2.0"
-description = "HFT-grade pure-functional risk management authority. Zero garbage-collection allocation."
+version = "0.1.0"
+description = "Zero-allocation absolute drawdown mathematics evaluators."
 readme = "README.md"
-license = "MIT"
 requires-python = ">=3.10"
-
-dependencies = [
-    "msgspec>=0.18.0",
-    "numpy>=1.26.0"
-]
+dependencies = []
 
 [project.optional-dependencies]
-dev = ["hypothesis>=6.90.0", "pytest>=8.0.0"]
+dev = ["pytest", "pytest-cov", "hypothesis"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/trade_risk_engine"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
