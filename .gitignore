@@ -19,3 +19,4 @@ patch_*.py
 .coverage
 issue_url.txt
 package-lock.json
+.venv/
