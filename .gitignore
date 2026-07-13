@@ -16,3 +16,6 @@ patch_*.py
 *.bak
 .env
 .DS_Store
+.coverage
+issue_url.txt
+package-lock.json

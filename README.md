@@ -1,4 +1,4 @@
-div align="center">
+<div align="center">
   <h1>Trade Risk Engine</h1>
   <p><strong>Deterministic, Pure-Functional Capital Protection Evaluator</strong></p>
   <img src="https://img.shields.io/badge/build-passing-brightgreen" alt="Build Status" />

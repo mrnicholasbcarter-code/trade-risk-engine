@@ -1,5 +1,5 @@
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import httpx
@@ -246,7 +246,7 @@ class TestOpenTelemetryTracing:
 
         # Passing no current_time, outcomes are naive
         outcomes = [
-            TradeOutcome(timestamp=datetime.utcnow() - timedelta(minutes=5), pnl=-10.0),
+            TradeOutcome(timestamp=datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=5), pnl=-10.0),
         ]
 
         res = evaluate_consecutive_losses(ctx, outcomes, None, decision)

@@ -104,12 +104,12 @@ def evaluate_consecutive_losses(
         return True
 
     if current_time is None:
-        if trade_outcomes[0].timestamp.tzinfo is not None:
-            from datetime import timezone
+        from datetime import timezone
 
+        if trade_outcomes[0].timestamp.tzinfo is not None:
             current_time = datetime.now(timezone.utc)
         else:
-            current_time = datetime.utcnow()
+            current_time = datetime.now(timezone.utc).replace(tzinfo=None)
 
     # Sort outcomes chronologically (oldest to newest)
     sorted_outcomes = sorted(trade_outcomes, key=lambda x: x.timestamp)
