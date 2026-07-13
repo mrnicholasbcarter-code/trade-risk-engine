@@ -10,6 +10,9 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = ["msgspec>=0.18.0", "pydantic>=2.0.0", "opentelemetry-api>=1.20.0", "opentelemetry-sdk>=1.20.0", "httpx>=0.20.0"]
 
+[project.scripts]
+trade-risk-benchmark = "trade_risk_engine.benchmark:main"
+
 [project.optional-dependencies]
 dev = ["pytest", "pytest-cov", "hypothesis", "ruff", "mypy"]
 test = ["pytest", "pytest-cov", "hypothesis"]
@@ -46,3 +49,4 @@ disallow_untyped_defs = true
 disallow_incomplete_defs = true
 check_untyped_defs = true
 no_implicit_optional = true
+mypy_path = "typings"

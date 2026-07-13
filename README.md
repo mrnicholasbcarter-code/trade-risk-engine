@@ -23,6 +23,9 @@ A **deterministic, pure-functional capital protection evaluator** for quantitati
   - [Falsification Example (Drawdown Gate rejection)](#falsification-example-drawdown-gate-rejection)
   - [Stateful Desk Gates Example](#stateful-desk-gates-example)
   - [Telemetry Integration](#telemetry-integration)
+  - [State Persistence](#state-persistence)
+  - [Paper Execution Guardrails](#paper-execution-guardrails)
+  - [Benchmark Report](#benchmark-report)
 - [Testing & Mathematical Fuzzing](#testing--mathematical-fuzzing)
 - [Performance Optimization](#performance-optimization)
 - [Contributing](#contributing)
@@ -315,9 +318,52 @@ async def broadcast_alert():
     print(f"Webhook broadcast status: {success}")
 ```
 
----
+### State Persistence
 
-## Testing & Mathematical Fuzzing
+Crash recovery is supported through a schema-versioned risk snapshot. The snapshot captures the active policy and the mutable desk gates, and it restores back into a fresh `RiskAuthority` instance.
+
+```python
+from trade_risk_engine import RiskAuthority, RiskContext, RiskState
+
+ctx = RiskContext()
+authority = RiskAuthority()
+state = authority.snapshot_state(ctx)
+restored_state = RiskState.from_json(state.to_json())
+restored_authority = RiskAuthority.from_state(restored_state)
+```
+
+### Paper Execution Guardrails
+
+Paper-mode examples can consume alerts, but they cannot place live orders. The adapter raises immediately if a caller tries to cross that boundary.
+
+```python
+from trade_risk_engine import PaperExecutionAdapter
+from trade_risk_engine.webhook import ProposedTradeInfo, RiskEvent
+
+adapter = PaperExecutionAdapter()
+event = RiskEvent(
+    decision_approved=False,
+    reason_code="ERR_DAILY_DRAWDOWN",
+    suggested_size=0.0,
+    proposed_trade=ProposedTradeInfo(
+        target_family="AAPL",
+        proposed_cost=100.0,
+        expected_value=1.5,
+    ),
+)
+adapter.handle_alert(event)
+# adapter.submit_order(...) -> RuntimeError: live order placement is disabled
+```
+
+### Benchmark Report
+
+The package includes a small latency benchmark helper that reports percentiles and caveats.
+
+```bash
+python -m trade_risk_engine.benchmark --iterations 1000 --warmup-iterations 100
+```
+
+The reported percentiles are reproducible for a fixed sample set, but they are not directly comparable to native or Rust systems without matching hardware, workload shape, tracing, and runtime overhead.
 
 The engine relies on property-based fuzzing using `hypothesis` to ensure mathematical safety and robustness. We define strategies targeting extreme IEEE-754 floating-point edge cases (e.g. `NaN`, `Infinity`, `-Infinity`, subnormal floats like `1e-12`, and massive floats like `1e12`).
 

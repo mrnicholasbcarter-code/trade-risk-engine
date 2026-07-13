@@ -1,8 +1,26 @@
+from __future__ import annotations
+
 import math
 from datetime import datetime, timedelta
 from typing import final
 
-from .state import Position, RiskContext, RiskDecision, TradeOutcome
+from .state import (
+    ConsecutiveLossGateState,
+    KillSwitchState,
+    Position,
+    RiskContext,
+    RiskDecision,
+    TimedCircuitBreakerState,
+    TradeOutcome,
+)
+
+
+def _is_aware(dt: datetime) -> bool:
+    return dt.tzinfo is not None and dt.utcoffset() is not None
+
+
+def _timezone_mode(dt: datetime) -> str:
+    return "aware" if _is_aware(dt) else "naive"
 
 
 def evaluate_drawdown(
@@ -17,6 +35,8 @@ def evaluate_drawdown(
         or math.isnan(daily_realized_pnl)
         or math.isinf(equity)
         or math.isinf(daily_realized_pnl)
+        or math.isnan(ctx.max_daily_drawdown_pct)
+        or math.isinf(ctx.max_daily_drawdown_pct)
     ):
         decision.approved = False
         decision.reason_code = "ERR_INVALID_FLOAT_DRAWDOWN"
@@ -45,7 +65,12 @@ def evaluate_concentration(
     """
     Blocks trades that concentrate capital into a single event resolution or asset family.
     """
-    if math.isnan(proposed_cost) or math.isinf(proposed_cost):
+    if (
+        math.isnan(proposed_cost)
+        or math.isinf(proposed_cost)
+        or math.isnan(ctx.max_correlated_exposure)
+        or math.isinf(ctx.max_correlated_exposure)
+    ):
         decision.approved = False
         decision.reason_code = "ERR_INVALID_FLOAT_CONCENTRATION"
         return False
@@ -73,7 +98,12 @@ def evaluate_expected_value(
     """
     Blocks trades that do not meet the minimum expected value threshold (e.g. EV <= 0).
     """
-    if math.isnan(expected_value) or math.isinf(expected_value):
+    if (
+        math.isnan(expected_value)
+        or math.isinf(expected_value)
+        or math.isnan(ctx.min_expected_value)
+        or math.isinf(ctx.min_expected_value)
+    ):
         decision.approved = False
         decision.reason_code = "ERR_INVALID_FLOAT_EXPECTED_VALUE"
         return False
@@ -97,19 +127,34 @@ def evaluate_consecutive_losses(
     """
     Blocks trades after N consecutive losses within Y minutes.
     """
+    if ctx.consecutive_loss_limit < 0 or ctx.consecutive_loss_window_minutes < 0:
+        decision.approved = False
+        decision.reason_code = "ERR_INVALID_CONSECUTIVE_LOSS_CONTEXT"
+        return False
+
     if ctx.consecutive_loss_limit <= 0:
         return True
 
     if not trade_outcomes:
         return True
 
-    if current_time is None:
-        from datetime import timezone
+    outcome_modes = {_timezone_mode(outcome.timestamp) for outcome in trade_outcomes}
+    if len(outcome_modes) > 1:
+        decision.approved = False
+        decision.reason_code = "ERR_INVALID_TIMEZONE_MIXED"
+        return False
 
-        if trade_outcomes[0].timestamp.tzinfo is not None:
-            current_time = datetime.now(timezone.utc)
-        else:
-            current_time = datetime.now(timezone.utc).replace(tzinfo=None)
+    if any(not math.isfinite(outcome.pnl) for outcome in trade_outcomes):
+        decision.approved = False
+        decision.reason_code = "ERR_INVALID_FLOAT_CONSECUTIVE_LOSSES"
+        return False
+
+    if current_time is None:
+        current_time = max(outcome.timestamp for outcome in trade_outcomes)
+    elif _timezone_mode(current_time) not in outcome_modes:
+        decision.approved = False
+        decision.reason_code = "ERR_INVALID_TIMEZONE_MIXED"
+        return False
 
     # Sort outcomes chronologically (oldest to newest)
     sorted_outcomes = sorted(trade_outcomes, key=lambda x: x.timestamp)
@@ -121,6 +166,10 @@ def evaluate_consecutive_losses(
         if outcome.pnl < 0:
             time_diff = current_time - outcome.timestamp
             diff_seconds = time_diff.total_seconds()
+            if diff_seconds < 0:
+                decision.approved = False
+                decision.reason_code = "ERR_INVALID_TIME_ORDER"
+                return False
             if 0 <= diff_seconds <= limit_seconds:
                 consecutive_losses_in_window += 1
                 if consecutive_losses_in_window >= ctx.consecutive_loss_limit:
@@ -181,6 +230,16 @@ class KillSwitch:
             return False
         return True
 
+    def to_state(self) -> KillSwitchState:
+        return KillSwitchState(tripped=self.tripped, reason=self.reason, tripped_at=self.tripped_at)
+
+    @classmethod
+    def from_state(cls, state: KillSwitchState) -> KillSwitch:
+        switch = cls(reason=state.reason)
+        switch.tripped = state.tripped
+        switch.tripped_at = state.tripped_at
+        return switch
+
 
 @final
 class TimedCircuitBreaker:
@@ -217,6 +276,8 @@ class TimedCircuitBreaker:
         consecutive_loss_threshold: int = 3,
         cooldown_hours: float = 24.0,
     ) -> None:
+        if type(consecutive_loss_threshold) is not int:
+            raise ValueError("consecutive_loss_threshold must be an int")
         if consecutive_loss_threshold < 1:
             raise ValueError("consecutive_loss_threshold must be >= 1")
         if cooldown_hours <= 0:
@@ -257,6 +318,10 @@ class TimedCircuitBreaker:
         and clears the streak so the desk can resume with a clean slate.
         """
         if self.tripped and self.tripped_at is not None and now is not None:
+            if _timezone_mode(now) != _timezone_mode(self.tripped_at):
+                decision.approved = False
+                decision.reason_code = "ERR_INVALID_TIMEZONE_MIXED"
+                return False
             elapsed = now - self.tripped_at
             if elapsed >= timedelta(hours=self.cooldown_hours):
                 # Cooldown elapsed: clear and allow trading.
@@ -279,6 +344,26 @@ class TimedCircuitBreaker:
         self.tripped = False
         self.tripped_at = None
 
+    def to_state(self) -> TimedCircuitBreakerState:
+        return TimedCircuitBreakerState(
+            consecutive_loss_threshold=self.consecutive_loss_threshold,
+            cooldown_hours=self.cooldown_hours,
+            loss_streak=self.loss_streak,
+            tripped=self.tripped,
+            tripped_at=self.tripped_at,
+        )
+
+    @classmethod
+    def from_state(cls, state: TimedCircuitBreakerState) -> TimedCircuitBreaker:
+        breaker = cls(
+            consecutive_loss_threshold=state.consecutive_loss_threshold,
+            cooldown_hours=state.cooldown_hours,
+        )
+        breaker.loss_streak = state.loss_streak
+        breaker.tripped = state.tripped
+        breaker.tripped_at = state.tripped_at
+        return breaker
+
 
 @final
 class ConsecutiveLossGate:
@@ -299,6 +384,10 @@ class ConsecutiveLossGate:
     __slots__ = ("history", "max_losses", "window_trades")
 
     def __init__(self, max_losses: int, window_trades: int) -> None:
+        if type(max_losses) is not int:
+            raise ValueError("max_losses must be an int")
+        if type(window_trades) is not int:
+            raise ValueError("window_trades must be an int")
         if max_losses < 1:
             raise ValueError("max_losses must be >= 1")
         if window_trades < 1:
@@ -337,6 +426,19 @@ class ConsecutiveLossGate:
     def reset(self) -> None:
         """Clear the rolling history."""
         self.history = []
+
+    def to_state(self) -> ConsecutiveLossGateState:
+        return ConsecutiveLossGateState(
+            max_losses=self.max_losses,
+            window_trades=self.window_trades,
+            history=tuple(self.history),
+        )
+
+    @classmethod
+    def from_state(cls, state: ConsecutiveLossGateState) -> ConsecutiveLossGate:
+        gate = cls(max_losses=state.max_losses, window_trades=state.window_trades)
+        gate.history = list(state.history)
+        return gate
 
 
 def _is_finite(x: float) -> bool:

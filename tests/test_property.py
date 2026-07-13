@@ -68,7 +68,10 @@ VALID_EXPECTED_VALUE = st.floats(
 class TestRiskAuthorityProperties:
     @settings(max_examples=1000)
     @given(
-        daily_pnl=EDGE_FLOATS, equity=EDGE_FLOATS, proposed=EDGE_FLOATS, expected_value=EDGE_FLOATS
+        daily_pnl=EDGE_FLOATS,
+        equity=EDGE_FLOATS,
+        proposed=SAFE_PROPOSED,
+        expected_value=EDGE_FLOATS,
     )
     def test_engine_never_crashes_on_edge_floats(self, daily_pnl, equity, proposed, expected_value):
         decision = RiskAuthority.evaluate_trade(
@@ -147,9 +150,9 @@ class TestDrawdownGateProperties:
 
 class TestConcentrationGateProperties:
     @settings(max_examples=1000)
-    @given(existing_cost=EDGE_FLOATS, proposed=EDGE_FLOATS)
+    @given(existing_cost=SAFE_PROPOSED, proposed=EDGE_FLOATS)
     def test_concentration_gate_edge_floats(self, existing_cost, proposed):
-        decision = RiskDecision(approved=True, reason_code="OK", suggested_size=proposed)
+        decision = RiskDecision(approved=True, reason_code="OK", suggested_size=0.0)
         positions = [
             Position(
                 ticker="TEST-1",

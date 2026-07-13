@@ -27,7 +27,7 @@ from .gates import (
     evaluate_drawdown,
     evaluate_expected_value,
 )
-from .state import Position, RiskContext, RiskDecision, TradeOutcome
+from .state import Position, RiskContext, RiskDecision, RiskState, TradeOutcome
 
 TRACER_NAME = "trade-risk-engine"
 logger = logging.getLogger(TRACER_NAME)
@@ -162,6 +162,47 @@ class RiskAuthority:
             self.timed_breaker.record(pnl, at=at)
         if self.consecutive_loss_gate is not None:
             self.consecutive_loss_gate.record(pnl)
+
+    def snapshot_state(self, ctx: RiskContext) -> RiskState:
+        """Capture the current authority state together with the active policy."""
+
+        return RiskState(
+            context=ctx,
+            kill_switch=self.kill_switch.to_state() if self.kill_switch is not None else None,
+            timed_breaker=(
+                self.timed_breaker.to_state() if self.timed_breaker is not None else None
+            ),
+            consecutive_loss_gate=(
+                self.consecutive_loss_gate.to_state()
+                if self.consecutive_loss_gate is not None
+                else None
+            ),
+        )
+
+    @classmethod
+    def from_state(
+        cls,
+        state: RiskState,
+        on_trip: Callable[[RiskDecision], None] | None = None,
+    ) -> RiskAuthority:
+        """Restore a ``RiskAuthority`` from a serialized state snapshot."""
+
+        return cls(
+            kill_switch=KillSwitch.from_state(state.kill_switch)
+            if state.kill_switch is not None
+            else None,
+            timed_breaker=(
+                TimedCircuitBreaker.from_state(state.timed_breaker)
+                if state.timed_breaker is not None
+                else None
+            ),
+            consecutive_loss_gate=(
+                ConsecutiveLossGate.from_state(state.consecutive_loss_gate)
+                if state.consecutive_loss_gate is not None
+                else None
+            ),
+            on_trip=on_trip,
+        )
 
     def _maybe_fire_trip(self, decision: RiskDecision) -> None:
         """Invoke ``on_trip`` once per distinct stateful rejection reason."""

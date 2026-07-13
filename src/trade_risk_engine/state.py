@@ -1,31 +1,27 @@
 """Core state structures for the trade risk engine.
 
-All structures are immutable (or immutable-in-practice via ``gc=False``) so
-that the evaluator is deterministic across multiple gates and a decision can
-be replayed from its inputs alone. JSON round-trip helpers are provided on
-``RiskDecision`` and ``RiskContext`` so that a crashed evaluation can be
-persisted, audited, and reloaded.
+The public state objects are immutable and versioned so that a crash-recovered
+risk session can be serialized, audited, and restored deterministically.
 """
 
 from __future__ import annotations
 
-import json
 import math
 from datetime import datetime
-from typing import Any
 
 import msgspec
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
+
+RISK_STATE_SCHEMA_VERSION = 1
+
+
+def _ensure_finite(value: float, field_name: str) -> None:
+    if isinstance(value, bool) or not math.isfinite(value):
+        raise ValueError(f"{field_name} must be finite")
 
 
 class RiskContext(msgspec.Struct, frozen=True):
-    """Immutable configuration for all risk gates.
-
-    The context captures capital protection thresholds and latency budgets that
-    should remain stable for a single evaluation pass. It is frozen to make the
-    evaluator deterministic and prevent gates from mutating policy while a trade
-    is being reviewed.
-    """
+    """Immutable configuration for all risk gates."""
 
     max_daily_drawdown_pct: float = 0.10
     max_weekly_drawdown_pct: float = 0.20
@@ -35,56 +31,32 @@ class RiskContext(msgspec.Struct, frozen=True):
     consecutive_loss_limit: int = 0
     consecutive_loss_window_minutes: float = 15.0
 
-    def to_json(self) -> str:
-        """Serialize the context to a JSON string for persistence/audit.
+    def __post_init__(self) -> None:
+        if type(self.latency_budget_us) is not int:
+            raise ValueError("latency_budget_us must be an int")
+        if type(self.consecutive_loss_limit) is not int:
+            raise ValueError("consecutive_loss_limit must be an int")
+        _ensure_finite(self.max_daily_drawdown_pct, "max_daily_drawdown_pct")
+        _ensure_finite(self.max_weekly_drawdown_pct, "max_weekly_drawdown_pct")
+        _ensure_finite(self.max_correlated_exposure, "max_correlated_exposure")
+        _ensure_finite(self.min_expected_value, "min_expected_value")
+        _ensure_finite(self.consecutive_loss_window_minutes, "consecutive_loss_window_minutes")
 
-        Floats are serialized losslessly via ``json.dumps``'s native repr.
-        ``NaN``/``Infinity`` are intentionally rejected by the ``allow_nan=False``
-        flag: a context configured with non-finite policy thresholds is not a
-        valid context and round-tripping it would be meaningless.
-        """
-        data: dict[str, Any] = {
-            "max_daily_drawdown_pct": self.max_daily_drawdown_pct,
-            "max_weekly_drawdown_pct": self.max_weekly_drawdown_pct,
-            "max_correlated_exposure": self.max_correlated_exposure,
-            "min_expected_value": self.min_expected_value,
-            "latency_budget_us": int(self.latency_budget_us),
-            "consecutive_loss_limit": int(self.consecutive_loss_limit),
-            "consecutive_loss_window_minutes": float(self.consecutive_loss_window_minutes),
-        }
-        return json.dumps(data, allow_nan=False, sort_keys=True)
+    def to_json(self) -> str:
+        """Serialize the context to a JSON string for persistence/audit."""
+        return msgspec.json.encode(self).decode("utf-8")
 
     @classmethod
     def from_json(cls, payload: str | bytes) -> RiskContext:
-        """Reconstruct a ``RiskContext`` from a JSON string.
-
-        Unknown keys are ignored so that older payloads remain loadable after
-        the context grows new fields. Used for crash-recovery: the persisted
-        context that produced a (possibly un-flushed) decision is restored
-        exactly before the audit log is written.
-        """
-        data = json.loads(payload)
-        known = {
-            "max_daily_drawdown_pct",
-            "max_weekly_drawdown_pct",
-            "max_correlated_exposure",
-            "min_expected_value",
-            "latency_budget_us",
-            "consecutive_loss_limit",
-            "consecutive_loss_window_minutes",
-        }
-        kwargs = {k: v for k, v in data.items() if k in known}
-        return cls(**kwargs)
+        """Reconstruct a ``RiskContext`` from a JSON string."""
+        try:
+            return msgspec.json.decode(payload, type=cls)
+        except Exception as exc:  # pragma: no cover - surfaced as ValueError to callers
+            raise ValueError(f"Invalid RiskContext payload: {exc}") from exc
 
 
 class Position(msgspec.Struct, gc=False):
-    """Memory-efficient representation of an open or resolved market position.
-
-    Positions are grouped by ``family`` so the concentration gate can aggregate
-    related exposure across contracts that share an event, market theme, or
-    correlated payoff. Resolved positions stay representable but are ignored for
-    active exposure limits.
-    """
+    """Memory-efficient representation of an open or resolved market position."""
 
     ticker: str
     family: str
@@ -92,63 +64,170 @@ class Position(msgspec.Struct, gc=False):
     current_value: float
     is_resolved: bool
 
+    def __post_init__(self) -> None:
+        if type(self.ticker) is not str:
+            raise ValueError("ticker must be a string")
+        if type(self.family) is not str:
+            raise ValueError("family must be a string")
+        if type(self.is_resolved) is not bool:
+            raise ValueError("is_resolved must be a bool")
+        _ensure_finite(self.cost_basis, "cost_basis")
+        _ensure_finite(self.current_value, "current_value")
+
 
 class RiskDecision(msgspec.Struct, gc=False):
-    """Outcome returned by the risk engine for a proposed trade.
-
-    ``approved`` is the final allow/deny flag, ``reason_code`` identifies the
-    first gate that rejected the trade or ``OK``, and ``suggested_size`` carries
-    the proposed or adjusted notional amount for downstream execution code.
-    """
+    """Outcome returned by the risk engine for a proposed trade."""
 
     approved: bool
     reason_code: str
     suggested_size: float
 
-    def to_json(self) -> str:
-        """Serialize the decision to a JSON string for crash recovery / audit.
+    def __post_init__(self) -> None:
+        if type(self.approved) is not bool:
+            raise ValueError("approved must be a bool")
+        if type(self.reason_code) is not str:
+            raise ValueError("reason_code must be a string")
+        _ensure_finite(self.suggested_size, "suggested_size")
 
-        Non-finite ``suggested_size`` values (``NaN``/``Infinity``) are
-        rejected: a decision cannot meaningfully be persisted with a
-        non-executable size, and the strict ``allow_nan=False`` flag enforces
-        that the recovery path can never rehydrate an unsound decision.
-        """
-        data: dict[str, Any] = {
-            "approved": bool(self.approved),
-            "reason_code": str(self.reason_code),
-            "suggested_size": float(self.suggested_size),
-        }
-        return json.dumps(data, allow_nan=False, sort_keys=True)
+    def to_json(self) -> str:
+        """Serialize the decision to a JSON string for crash recovery / audit."""
+        return msgspec.json.encode(self).decode("utf-8")
 
     @classmethod
     def from_json(cls, payload: str | bytes) -> RiskDecision:
         """Reconstruct a ``RiskDecision`` from a JSON string."""
-        data = json.loads(payload)
-        return cls(
-            approved=bool(data["approved"]),
-            reason_code=str(data["reason_code"]),
-            suggested_size=float(data["suggested_size"]),
-        )
+        try:
+            return msgspec.json.decode(payload, type=cls)
+        except Exception as exc:  # pragma: no cover - surfaced as ValueError to callers
+            raise ValueError(f"Invalid RiskDecision payload: {exc}") from exc
+
+
+class KillSwitchState(msgspec.Struct, frozen=True):
+    """Serializable snapshot of a manual kill switch."""
+
+    tripped: bool = False
+    reason: str = "ERR_KILL_SWITCH_MANUAL"
+    tripped_at: datetime | None = None
+
+
+class TimedCircuitBreakerState(msgspec.Struct, frozen=True):
+    """Serializable snapshot of the time-based circuit breaker."""
+
+    consecutive_loss_threshold: int = 3
+    cooldown_hours: float = 24.0
+    loss_streak: int = 0
+    tripped: bool = False
+    tripped_at: datetime | None = None
+
+    def __post_init__(self) -> None:
+        if type(self.consecutive_loss_threshold) is not int:
+            raise ValueError("consecutive_loss_threshold must be an int")
+        if type(self.loss_streak) is not int:
+            raise ValueError("loss_streak must be an int")
+        if self.consecutive_loss_threshold < 1:
+            raise ValueError("consecutive_loss_threshold must be >= 1")
+        if self.cooldown_hours <= 0:
+            raise ValueError("cooldown_hours must be > 0")
+        if self.loss_streak < 0:
+            raise ValueError("loss_streak must be >= 0")
+
+
+class ConsecutiveLossGateState(msgspec.Struct, frozen=True):
+    """Serializable snapshot of the rolling consecutive-loss gate."""
+
+    max_losses: int
+    window_trades: int
+    history: tuple[bool, ...] = ()
+
+    def __post_init__(self) -> None:
+        if type(self.max_losses) is not int:
+            raise ValueError("max_losses must be an int")
+        if type(self.window_trades) is not int:
+            raise ValueError("window_trades must be an int")
+        if self.max_losses < 1:
+            raise ValueError("max_losses must be >= 1")
+        if self.window_trades < 1:
+            raise ValueError("window_trades must be >= 1")
+        if self.max_losses > self.window_trades:
+            raise ValueError("max_losses cannot exceed window_trades")
+        if len(self.history) > self.window_trades:
+            raise ValueError("history cannot exceed window_trades")
+
+
+class RiskState(msgspec.Struct, frozen=True):
+    """Schema-versioned serializable risk state."""
+
+    schema_version: int = RISK_STATE_SCHEMA_VERSION
+    context: RiskContext = RiskContext()
+    kill_switch: KillSwitchState | None = None
+    timed_breaker: TimedCircuitBreakerState | None = None
+    consecutive_loss_gate: ConsecutiveLossGateState | None = None
+
+    def __post_init__(self) -> None:
+        if type(self.schema_version) is not int or self.schema_version != RISK_STATE_SCHEMA_VERSION:
+            raise ValueError(
+                f"Unsupported risk state schema_version={self.schema_version}; "
+                f"expected {RISK_STATE_SCHEMA_VERSION}"
+            )
+
+    def to_json(self) -> str:
+        """Serialize the full state snapshot to JSON."""
+        return msgspec.json.encode(self).decode("utf-8")
+
+    @classmethod
+    def from_json(cls, payload: str | bytes) -> RiskState:
+        """Restore a state snapshot from JSON, rejecting malformed payloads."""
+        try:
+            raw = msgspec.json.decode(payload)
+        except Exception as exc:  # pragma: no cover - surfaced as ValueError to callers
+            raise ValueError(f"Invalid RiskState payload: {exc}") from exc
+        if not isinstance(raw, dict):
+            raise ValueError("RiskState payload must be a JSON object")
+        allowed_keys = {
+            "schema_version",
+            "context",
+            "kill_switch",
+            "timed_breaker",
+            "consecutive_loss_gate",
+        }
+        required_keys = allowed_keys
+        unexpected = set(raw) - allowed_keys
+        if unexpected:
+            raise ValueError(f"Unexpected RiskState keys: {sorted(unexpected)}")
+        missing = required_keys - set(raw)
+        if missing:
+            raise ValueError(f"RiskState payload missing keys: {sorted(missing)}")
+        if (
+            type(raw["schema_version"]) is not int
+            or raw["schema_version"] != RISK_STATE_SCHEMA_VERSION
+        ):
+            raise ValueError(
+                f"Unsupported risk state schema_version={raw['schema_version']}; "
+                f"expected {RISK_STATE_SCHEMA_VERSION}"
+            )
+        try:
+            return msgspec.json.decode(msgspec.json.encode(raw), type=cls)
+        except Exception as exc:  # pragma: no cover - surfaced as ValueError to callers
+            raise ValueError(f"Invalid RiskState payload: {exc}") from exc
 
 
 class TradeOutcome(BaseModel):
-    """Representation of a past trade outcome for consecutive loss gating.
+    """Representation of a past trade outcome for consecutive loss gating."""
 
-    PnL is negative for a loss and positive / zero for a win. ``timestamp`` is
-    kept timezone-agnostic intentionally: callers may use naive UTC or
-    timezone-aware datetimes, but mixing the two in a single outcome list is
-    a caller bug (and the gate surfaces it via the underlying timedelta
-    comparison rather than silently coercing).
-    """
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
 
     timestamp: datetime
     pnl: float
 
 
-def is_safe_float(x: float) -> bool:
-    """True iff ``x`` is finite and not a NaN/inf.
-
-    Shared by gates and JSON helpers so that the definition of "safe" never
-    drifts between evaluation boundaries and persistence boundaries.
-    """
-    return isinstance(x, float) and math.isfinite(x)
+__all__ = [
+    "RISK_STATE_SCHEMA_VERSION",
+    "ConsecutiveLossGateState",
+    "KillSwitchState",
+    "Position",
+    "RiskContext",
+    "RiskDecision",
+    "RiskState",
+    "TimedCircuitBreakerState",
+    "TradeOutcome",
+]
