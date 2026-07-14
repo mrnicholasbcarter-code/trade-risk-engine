@@ -1,4 +1,3 @@
-from collections.abc import Callable
 from typing import Any, TypeVar
 
 from typing_extensions import dataclass_transform
@@ -9,4 +8,4 @@ T = TypeVar("T")
 class Struct:
     def __init_subclass__(cls, **kwargs: Any) -> None: ...
 
-from . import json  # noqa: F401
+from . import json  # noqa: F401, E402
