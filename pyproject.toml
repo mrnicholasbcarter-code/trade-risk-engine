@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "verdict-risk"
+name = "llm-gate-risk"
 version = "0.1.0"
 description = "Zero-allocation absolute drawdown mathematics evaluators for LLM routing risk assessment."
 readme = "README.md"
@@ -24,7 +24,7 @@ dev = ["pytest", "pytest-cov", "hypothesis", "ruff", "mypy", "build", "twine", "
 test = ["pytest", "pytest-cov", "hypothesis"]
 
 [project.scripts]
-verdict-risk-benchmark = "trade_risk_engine.benchmark:main"
+llm-gate-risk-benchmark = "trade_risk_engine.benchmark:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/trade_risk_engine"]
