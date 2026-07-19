@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "trade-risk-engine"
+name = "llm-gate-risk"
 version = "0.1.0"
 description = "Zero-allocation absolute drawdown mathematics evaluators."
 readme = "README.md"
@@ -14,7 +14,7 @@ dependencies = ["msgspec>=0.18.0", "pydantic>=2.0.0", "opentelemetry-api>=1.20.0
 trade-risk-benchmark = "trade_risk_engine.benchmark:main"
 
 [project.optional-dependencies]
-dev = ["pytest", "pytest-cov", "hypothesis", "ruff", "mypy"]
+dev = ["pytest", "pytest-cov", "hypothesis", "ruff", "mypy", "code-review-graph>=2.3.7"]
 test = ["pytest", "pytest-cov", "hypothesis"]
 
 [tool.hatch.build.targets.wheel]
