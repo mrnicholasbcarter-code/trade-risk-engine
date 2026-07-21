@@ -25,3 +25,6 @@ patch_*.py
 issue_url.txt
 package-lock.json
 .venv/
+
+# code-review-graph
+.code-review-graph/

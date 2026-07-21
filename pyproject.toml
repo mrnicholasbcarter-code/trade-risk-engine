@@ -3,19 +3,28 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "trade-risk-engine"
+name = "verdict-risk"
 version = "0.1.0"
-description = "Zero-allocation absolute drawdown mathematics evaluators."
+description = "Zero-allocation absolute drawdown mathematics evaluators for LLM routing risk assessment."
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = ["msgspec>=0.18.0", "pydantic>=2.0.0", "opentelemetry-api>=1.20.0", "opentelemetry-sdk>=1.20.0", "httpx>=0.20.0"]
-
-[project.scripts]
-trade-risk-benchmark = "trade_risk_engine.benchmark:main"
+license = {text = "MIT"}
+authors = [{name = "Nicholas Carter"}]
+keywords = ["llm", "routing", "risk", "drawdown", "quant", "evaluation"]
+dependencies = [
+    "msgspec>=0.18.0",
+    "pydantic>=2.0.0",
+    "opentelemetry-api>=1.20.0",
+    "opentelemetry-sdk>=1.20.0",
+    "httpx>=0.20.0",
+]
 
 [project.optional-dependencies]
-dev = ["pytest", "pytest-cov", "hypothesis", "ruff", "mypy"]
+dev = ["pytest", "pytest-cov", "hypothesis", "ruff", "mypy", "build", "twine", "code-review-graph>=2.3.7"]
 test = ["pytest", "pytest-cov", "hypothesis"]
+
+[project.scripts]
+verdict-risk-benchmark = "trade_risk_engine.benchmark:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/trade_risk_engine"]
@@ -52,13 +61,4 @@ no_implicit_optional = true
 mypy_path = "typings"
 
 [tool.hatch.build.targets.sdist]
-exclude = [
-  "/.hypothesis",
-  "/tests",
-  "/typings",
-  "/.github",
-  "/.pytest_cache",
-  "/.ruff_cache",
-  "/.mypy_cache",
-  "/.coverage"
-]
+exclude = ["/.hypothesis", "/tests", "/typings", "/.github", "/.pytest_cache", "/.ruff_cache", "/.mypy_cache", "/.coverage"]

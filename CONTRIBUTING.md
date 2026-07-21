@@ -1,6 +1,9 @@
-# Contributing to trade-risk-engine
+# Contributing to verdict-risk
 
-Thank you for your interest in contributing to `trade-risk-engine`! This library implements mathematically deterministic risk evaluation for trading systems. Precision, correctness, and determinism are paramount.
+Thank you for your interest in contributing to `verdict-risk`! The released
+distribution is `verdict-risk`; the compatible Python namespace remains
+`trade_risk_engine` until a separately documented migration is completed.
+Precision, correctness, and determinism are paramount.
 
 ## Code of Conduct
 
@@ -18,8 +21,8 @@ This project follows our [Code of Conduct](CODE_OF_CONDUCT.md). By participating
 
 ```bash
 # Clone the repository
-git clone https://github.com/mrnicholasbcarter-code/trade-risk-engine.git
-cd trade-risk-engine
+git clone https://github.com/mrnicholasbcarter-code/verdict-risk.git
+cd verdict-risk
 
 # Create virtual environment (recommended: uv)
 uv sync --dev
@@ -189,8 +192,8 @@ Releases are managed by maintainers:
 
 ## Getting Help
 
-- **Issues**: [GitHub Issues](https://github.com/mrnicholasbcarter-code/trade-risk-engine/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/mrnicholasbcarter-code/trade-risk-engine/discussions)
+- **Issues**: [GitHub Issues](https://github.com/mrnicholasbcarter-code/verdict-risk/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/mrnicholasbcarter-code/verdict-risk/discussions)
 - **Security**: See [SECURITY.md](SECURITY.md)
 
 ## License

@@ -1,18 +1,25 @@
 import pytest
+
 from trade_risk_engine.state import (
-    RiskContext, Position, RiskDecision, TimedCircuitBreakerState,
-    ConsecutiveLossGateState, RiskState, _ensure_finite
+    ConsecutiveLossGateState,
+    Position,
+    RiskContext,
+    RiskDecision,
+    RiskState,
+    TimedCircuitBreakerState,
+    _ensure_finite,
 )
+
 
 def test_missing_exceptions_state():
     with pytest.raises(ValueError):
-        _ensure_finite(float('inf'), "val")
+        _ensure_finite(float("inf"), "val")
     with pytest.raises(ValueError):
         _ensure_finite(True, "val")
-        
+
     with pytest.raises(ValueError):
         RiskContext(latency_budget_us=1.5)
-        
+
     with pytest.raises(ValueError):
         Position(ticker=1, family="FAM", cost_basis=1.0, current_value=1.0, is_resolved=False)
     with pytest.raises(ValueError):
@@ -51,13 +58,14 @@ def test_missing_exceptions_state():
 
     with pytest.raises(ValueError):
         RiskState(schema_version=1.5)
-    
-    with pytest.raises(ValueError):
-        RiskState.from_json("[]") # Not a dict
-    with pytest.raises(ValueError):
-        RiskState.from_json('{"bad": 1}') # Unexpected
-    with pytest.raises(ValueError):
-        RiskState.from_json('{"schema_version": 1}') # Missing
-    with pytest.raises(ValueError):
-        RiskState.from_json('{"schema_version": 2, "context": {}, "kill_switch": null, "timed_breaker": null, "consecutive_loss_gate": null}')
 
+    with pytest.raises(ValueError):
+        RiskState.from_json("[]")  # Not a dict
+    with pytest.raises(ValueError):
+        RiskState.from_json('{"bad": 1}')  # Unexpected
+    with pytest.raises(ValueError):
+        RiskState.from_json('{"schema_version": 1}')  # Missing
+    with pytest.raises(ValueError):
+        RiskState.from_json(
+            '{"schema_version": 2, "context": {}, "kill_switch": null, "timed_breaker": null, "consecutive_loss_gate": null}'
+        )

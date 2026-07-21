@@ -1,4 +1,3 @@
-++ /home/nick/trade-risk-engine/.github/ISSUE_TEMPLATE/bug_report.md
 ---
 name: Bug Report
 about: Create a report to help us improve
@@ -39,7 +38,7 @@ assignees: ''
 <!-- Please complete the following information: -->
 - OS: [e.g., Ubuntu 22.04, macOS 14, Windows 11]
 - Python version: [e.g., 3.10, 3.11, 3.12]
-- trade-risk-engine version: [e.g., 0.1.0]
+- verdict-risk version: [e.g., 0.1.0]
 
 
 ## Precision / Floating-point concerns

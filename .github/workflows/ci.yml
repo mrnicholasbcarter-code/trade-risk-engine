@@ -36,7 +36,7 @@ jobs:
         run: mypy src/
 
       - name: Test with pytest
-        run: pytest --cov=src/trade_risk_engine --cov-report=xml --cov-fail-under=80
+        run: pytest --cov=trade_risk_engine --cov-report=xml --cov-fail-under=80
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
@@ -88,6 +88,22 @@ jobs:
 
       - name: Check distribution
         run: twine check dist/*
+
+      - name: Wheel install smoke
+        run: |
+          python -m venv "$RUNNER_TEMP/verdict-risk-wheel"
+          "$RUNNER_TEMP/verdict-risk-wheel/bin/python" -m pip install --upgrade pip
+          "$RUNNER_TEMP/verdict-risk-wheel/bin/python" -m pip install dist/*.whl
+          "$RUNNER_TEMP/verdict-risk-wheel/bin/python" -c "from trade_risk_engine import RiskAuthority, RiskContext; assert RiskAuthority and RiskContext"
+          "$RUNNER_TEMP/verdict-risk-wheel/bin/verdict-risk-benchmark" --help
+
+      - name: Source distribution install smoke
+        run: |
+          python -m venv "$RUNNER_TEMP/verdict-risk-sdist"
+          "$RUNNER_TEMP/verdict-risk-sdist/bin/python" -m pip install --upgrade pip
+          "$RUNNER_TEMP/verdict-risk-sdist/bin/python" -m pip install dist/*.tar.gz
+          "$RUNNER_TEMP/verdict-risk-sdist/bin/python" -c "from trade_risk_engine import RiskAuthority, RiskContext; assert RiskAuthority and RiskContext"
+          "$RUNNER_TEMP/verdict-risk-sdist/bin/verdict-risk-benchmark" --help
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
