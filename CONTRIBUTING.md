@@ -162,10 +162,12 @@ def test_drawdown_calculation():
     result = calculate_drawdown(100.0, 95.0)
     assert result == pytest.approx(0.05, rel=1e-9)
 
+
 # GOOD - uses math.isclose
 def test_drawdown_calculation_isclose():
     result = calculate_drawdown(100.0, 95.0)
     assert math.isclose(result, 0.05, rel_tol=1e-9)
+
 
 # BAD - raw float comparison
 def test_drawdown_calculation_BAD():
